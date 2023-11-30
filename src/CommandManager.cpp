@@ -1,6 +1,6 @@
 #include "vulkan/vulkan.hpp"
 #include "toy2d/CommandManager.hpp"
-#include "toy2d/Context.hpp"
+#include "toy2d/context.hpp"
 
 namespace toy2d {
 

@@ -9,6 +9,7 @@ namespace toy2d {
 		vk::Pipeline graphicsPipeline;
 		vk::PipelineLayout layout;
 		vk::RenderPass renderPass;
+		vk::DescriptorSetLayout setLayout;
 
 		void recreateGraphicsPipeline();
 		void recreateRenderPass();
@@ -21,6 +22,7 @@ namespace toy2d {
 		vk::Pipeline createGraphicsPipeline();
 		vk::PipelineLayout createLayout();
 		vk::RenderPass createRenderPass();
+		vk::DescriptorSetLayout createSetLayout();
 
 	};
 }

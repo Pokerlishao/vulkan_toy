@@ -26,11 +26,24 @@ namespace toy2d {
 
 		std::unique_ptr<Buffer> hostVertexBuffer_;
 		std::unique_ptr<Buffer> deviceVertexBuffer_;
+		std::vector<std::unique_ptr<Buffer>> hostUniformBuffers_;
+		std::vector<std::unique_ptr<Buffer>> deviceUniformBuffers_;
+
+		vk::DescriptorPool descriptorPool;
+		std::vector<vk::DescriptorSet> descriptorSets;
 
 		void createSemaphores();
 		void createFences();
 		void createCmdBuffers();
 		void createVertexBuffer();
 		void bufferVertexData();
+		void createUniformBuffers();
+		void bufferUniformData();
+
+		void createDescriptorPool();
+		void allocateDescriptorSets();
+		void updateDescriptorSets();
+
+		void copyBuffer(vk::Buffer& src, vk::Buffer& dst, size_t size, size_t srcOffset, size_t dstOffset);
 	};
 }

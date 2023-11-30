@@ -1,6 +1,3 @@
-#pragma once
-
-
 #include "vulkan/vulkan.hpp"
 #include "toy2d/shader.hpp"
 #include "toy2d/context.hpp"

@@ -3,10 +3,12 @@
 #include "toy2d/swapchain.hpp"
 #include "toy2d/context.hpp"
 #include "toy2d/shader.hpp"
+#include "toy2d/uniform.hpp"
 
 namespace toy2d {
 
 	RenderProcess::RenderProcess() {
+		setLayout = createSetLayout();
 		layout = createLayout();
 		renderPass = createRenderPass();
 		graphicsPipeline = nullptr;
@@ -22,8 +24,16 @@ namespace toy2d {
 	vk::PipelineLayout RenderProcess::createLayout() {
 		vk::PipelineLayoutCreateInfo layoutInfo;
 		layoutInfo.setPushConstantRangeCount(0)
-			.setSetLayoutCount(0);
+			.setSetLayouts(setLayout);
 		return Context::GetInstance().device.createPipelineLayout(layoutInfo);
+	}
+
+	vk::DescriptorSetLayout RenderProcess::createSetLayout() {
+		vk::DescriptorSetLayoutCreateInfo setInfo;
+		auto binding = Uniform::GetBinding();
+		setInfo.setBindings(binding);
+
+		return Context::GetInstance().device.createDescriptorSetLayout(setInfo);
 	}
 
 	vk::Pipeline RenderProcess::createGraphicsPipeline() {
