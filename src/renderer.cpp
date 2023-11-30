@@ -226,6 +226,8 @@ namespace toy2d {
 		descriptorPool = Context::GetInstance().device.createDescriptorPool(poolInfo);
 	}
 
+
+	// the layout need to be destroyed
 	void Renderer::allocateDescriptorSets() {
 		std::vector<vk::DescriptorSetLayout> layouts(maxFlightCount, Context::GetInstance().renderProcess->setLayout);
 		vk::DescriptorSetAllocateInfo allocInfo;
