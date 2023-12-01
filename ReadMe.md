@@ -1,29 +1,17 @@
-# toy2D
+# Vulkan_toy
 
-Toy2d is a toy renderer imitates `SDL_Renderer` when I'm learning Vulkan.
+Vulkan_toy is a tiny renderer based on Vulkan, the project references [toy2d](https://github.com/VisualGMQ/toy2d/) and does some refactoring based on it, primarily for learning Vulkan.
+
 
 ## compile
 
-use CMake to compile:
+You can use CMake to compile:
 
-Under Linux and MacOSX, compile is manually:
-
-```cmake
-cmake -S . -B cmake-build
-cmake --build cmake-build
-```
-
-Under Windows, you should use Visual Studio to compile. You should point out the SDL2 devel Root:
-
-```text
-SDL2_ROOT = D:/Program/3rdlibs/SDL2-2.0.22-VC
-```
-
-and use cmake to compile:
 
 ```cmake
 cmake -S . -B cmake-build
 cmake --build cmake-build
 ```
 
-the example program is `sandbox.exe`, please run it at this directory
+## Known issues
+Right now the project hasn't been tested on MACOS on M2 chips yet.
