@@ -29,6 +29,7 @@ namespace toy2d {
 			.setPCode((uint32_t*)(fragSource.data()));
 		fragShader = Context::GetInstance().device.createShaderModule(create_info);
 
+		initDescriptorSetLayouts();
 		InitStage();
 	}
 
@@ -51,5 +52,29 @@ namespace toy2d {
 		shaderStageInfo[1].setStage(vk::ShaderStageFlagBits::eFragment)
 			.setModule(fragShader)
 			.setPName("main");
+	}
+
+	void Shader::initDescriptorSetLayouts() {
+		vk::DescriptorSetLayoutCreateInfo createInfo;
+		std::vector<vk::DescriptorSetLayoutBinding> bindings(2);
+		bindings[0].setBinding(0)
+			.setDescriptorCount(1)
+			.setDescriptorType(vk::DescriptorType::eUniformBuffer)
+			.setStageFlags(vk::ShaderStageFlagBits::eVertex);
+		bindings[1].setBinding(1)
+			.setDescriptorCount(1)
+			.setDescriptorType(vk::DescriptorType::eUniformBuffer)
+			.setStageFlags(vk::ShaderStageFlagBits::eFragment);
+		createInfo.setBindings(bindings);
+
+		layouts.push_back(Context::GetInstance().device.createDescriptorSetLayout(createInfo));
+	}
+
+	vk::PushConstantRange Shader::GetPushConstantRange() const {
+		vk::PushConstantRange range;
+		range.setOffset(0)
+			.setSize(sizeof(glm::mat4x4))
+			.setStageFlags(vk::ShaderStageFlagBits::eVertex);
+		return range;
 	}
 }

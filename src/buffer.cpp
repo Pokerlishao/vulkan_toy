@@ -4,14 +4,24 @@
 
 
 namespace toy2d {
-	Buffer::Buffer(size_t size, vk::BufferUsageFlags usage, vk::MemoryPropertyFlags property) : size(size) {
+	Buffer::Buffer(size_t size, vk::BufferUsageFlags usage, vk::MemoryPropertyFlags property) 
+		: size(size) {
 		createBuffer(size, usage);
 		auto info = GetMemoryInfo(property);
 		allocMemory(info);
 		bindingMem2Buf();
+		if (property & vk::MemoryPropertyFlagBits::eHostVisible) {
+			map = Context::GetInstance().device.mapMemory(memory, 0, size);
+		}
+		else {
+			map = nullptr;
+		}
 	}
 	Buffer::~Buffer() {
 		auto& device = Context::GetInstance().device;
+		if (map) {
+			device.unmapMemory(memory);
+		}
 		device.destroyBuffer(buffer);
 		device.freeMemory(memory);
 	}
@@ -40,6 +50,7 @@ namespace toy2d {
 		auto& device = Context::GetInstance().device;
 		auto requirements = device.getBufferMemoryRequirements(buffer);
 		info.size = requirements.size;
+		requireSize = requirements.size;
 		
 		auto properties = Context::GetInstance().physicaldevice.getMemoryProperties();
 		for (int i = 0; i < properties.memoryTypeCount; i++) {

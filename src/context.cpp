@@ -53,7 +53,7 @@ Context::Context(const std::vector<const char*>& extensions, CreateSurfaceFunc f
 
 Context::~Context() {
     if (instance_ == nullptr) {
-        std::cout << "ptr is null" << std::endl;  // 这里会输出 "ptr is null"
+        std::cout << "ptr is null" << std::endl;
     }
     commandManager.reset();
     renderProcess.reset();

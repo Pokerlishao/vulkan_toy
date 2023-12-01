@@ -23,8 +23,9 @@ namespace toy2d {
 
 	vk::PipelineLayout RenderProcess::createLayout() {
 		vk::PipelineLayoutCreateInfo layoutInfo;
-		layoutInfo.setPushConstantRangeCount(0)
-			.setSetLayouts(setLayout);
+		auto range = Shader::GetInstance().GetPushConstantRange();
+		layoutInfo.setSetLayouts(Shader::GetInstance().GetDescriptorSetLayouts())
+			.setPushConstantRanges(range);
 		return Context::GetInstance().device.createPipelineLayout(layoutInfo);
 	}
 
@@ -57,7 +58,6 @@ namespace toy2d {
 		//3. Shader
 		auto stage = Shader::GetInstance().GetStage();
 		createInfo.setStages(stage);
-		//createInfo.setStages(Shader::GetInstance().GetStage());
 
 		//4. viewport & scissor
 		vk::PipelineViewportStateCreateInfo viewState;
@@ -73,10 +73,11 @@ namespace toy2d {
 		//5. Rasterization
 		vk::PipelineRasterizationStateCreateInfo rasteState;
 		rasteState.setRasterizerDiscardEnable(false)
-			.setCullMode(vk::CullModeFlagBits::eBack)
-			.setFrontFace(vk::FrontFace::eClockwise )
+			.setCullMode(vk::CullModeFlagBits::eFront)
+			.setFrontFace(vk::FrontFace::eCounterClockwise )
 			.setPolygonMode(vk::PolygonMode::eFill)
-			.setLineWidth(1);
+			.setLineWidth(1)
+			.setDepthClampEnable(false);
 		createInfo.setPRasterizationState(&rasteState);
 
 		//6. Multi-Sample

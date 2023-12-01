@@ -17,6 +17,7 @@ namespace toy2d {
         ctx.swapchain->InitFramebuffers();
         ctx.InitCommandPool();
         renderer_ = std::make_unique<Renderer>();
+        renderer_->SetProject(W, 0, 0, H, -1, 1);
 
         //File read Path 
 

@@ -16,10 +16,14 @@ namespace toy2d {
 		vk::ShaderModule fragShader;
 
 		std::vector<vk::PipelineShaderStageCreateInfo> GetStage();
+		vk::PushConstantRange GetPushConstantRange() const;
+		const std::vector<vk::DescriptorSetLayout>& GetDescriptorSetLayouts() const { return layouts; }
 		
 	private:
 		static std::unique_ptr<Shader> instance_;
 		std::vector<vk::PipelineShaderStageCreateInfo> shaderStageInfo;
+		std::vector<vk::DescriptorSetLayout> layouts;
+		void initDescriptorSetLayouts();
 		void InitStage();
 	};
 }

@@ -20,6 +20,9 @@ int main(int argc, char** argv) {
     bool shouldClose = false;
     SDL_Event event;
     uint32_t count;
+
+
+
     //两次调用
     SDL_Vulkan_GetInstanceExtensions(window, &count, nullptr);
     std::vector<const char*> extensions(count);
@@ -33,14 +36,46 @@ int main(int argc, char** argv) {
         );
 
     auto renderer = toy2d::GetRenderer();
+    int x = 100, y = 100;
+    float rot = 0;
+    renderer->SetDrawColor(toy2d::Color{ 0, 1, 0 });
 
     while (!shouldClose) {
         while (SDL_PollEvent(&event)) {
             if (event.type == SDL_QUIT) {
                 shouldClose = true;
             }
+            if (event.type == SDL_KEYDOWN) {
+                if (event.key.keysym.sym == SDLK_a) {
+                    x -= 10;
+                }
+                if (event.key.keysym.sym == SDLK_d) {
+                    x += 10;
+                }
+                if (event.key.keysym.sym == SDLK_w) {
+                    y -= 10;
+                }
+                if (event.key.keysym.sym == SDLK_s) {
+                    y += 10;
+                }
+                if (event.key.keysym.sym == SDLK_q) {
+                    rot += 10;
+                }
+                if (event.key.keysym.sym == SDLK_e) {
+                    rot -= 10;
+                }
+                if (event.key.keysym.sym == SDLK_0) {
+                    renderer->SetDrawColor(toy2d::Color{ 1, 0, 0 });
+                }
+                if (event.key.keysym.sym == SDLK_1) {
+                    renderer->SetDrawColor(toy2d::Color{ 0, 1, 0 });
+                }
+                if (event.key.keysym.sym == SDLK_2) {
+                    renderer->SetDrawColor(toy2d::Color{ 0, 0, 1 });
+                }
+            }
         }
-        renderer->Render();
+        renderer->Render(x, y, rot);
     }
 
     toy2d::Quit();

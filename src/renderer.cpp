@@ -3,18 +3,28 @@
 #include "toy2d/buffer.hpp"
 #include "toy2d/CommandManager.hpp"
 #include "toy2d/uniform.hpp"
+#include "toy2d/tool.hpp"
+#include "toy2d/shader.hpp"
 #include "vulkan/vulkan.hpp"
+#include "glm/glm.hpp"
+#include "glm/common.hpp"
+#include "glm/gtc/matrix_transform.hpp"
 
 
 namespace toy2d {
 
-	static std::array<Vertex, 3> vertices = {
-		Vertex{0.0, -0.2},
+	static Vertex vertices[] = {
+		Vertex{-0.5, -0.5},
+		Vertex{0.5, -0.5},
 		Vertex{0.5, 0.5},
 		Vertex{-0.5, 0.5}
 	};
 
-	const Uniform uniform{ Color{1, 0, 0} };
+	static std::uint32_t indices[] = {
+		0, 1, 3,
+		1, 2, 3,
+	};
+
 
 	Renderer::Renderer(int maxFlightCount) : maxFlightCount(maxFlightCount), curFrame(0) {
 		createSemaphores();
@@ -23,13 +33,19 @@ namespace toy2d {
 
 		createVertexBuffer();
 		bufferVertexData();
+		createIndicesBuffer();
+		bufferIndicesData();
 
 		createUniformBuffers();
-		bufferUniformData();
 
 		createDescriptorPool();
 		allocateDescriptorSets();
 		updateDescriptorSets();
+
+		projectMat = glm::mat4x4(1.0f);
+		viewMat = glm::mat4x4(1.0f);
+
+		SetDrawColor(Color{ 0, 0, 0 });
 	}
 
 	Renderer::~Renderer() {
@@ -78,12 +94,13 @@ namespace toy2d {
 	}
 
 
-	void Renderer::Render() {
+	void Renderer::Render(int x, int y, float rot) {
 		auto& ctx = Context::GetInstance();
 		auto& device = ctx.device;
 		auto& render_process = ctx.renderProcess;
 		auto& swapchain = ctx.swapchain;
 		auto& cmdMag = ctx.commandManager;
+		auto& layout = ctx.renderProcess->layout;
 
 		//CPU GPU Í¬²½
 		if (device.waitForFences(cmdAvailableFences[curFrame], true, std::numeric_limits<std::uint64_t>::max()) != vk::Result::eSuccess) {
@@ -98,28 +115,34 @@ namespace toy2d {
 			throw std::runtime_error("Acquire next image in swapchain failed!");
 		}
 		auto imageIndex = result.value;
-
+		
 		cmdBuffers[curFrame].reset();
 		vk::CommandBufferBeginInfo beginInfo;
 		beginInfo.setFlags(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
 		cmdBuffers[curFrame].begin(beginInfo);
 		{
-			vk::RenderPassBeginInfo beginInfo;
+			vk::RenderPassBeginInfo passbeginInfo;
 			vk::Rect2D area({ 0,0 }, {swapchain->info.imageExtent});
 			vk::ClearValue clearValue;
 			clearValue.setColor(vk::ClearColorValue({0.1f, 0.0f, 0.3f, 1.0f}));
-			beginInfo.setRenderPass(render_process->renderPass)
+			passbeginInfo.setRenderPass(render_process->renderPass)
 				.setRenderArea(area)
 				.setFramebuffer(swapchain->frameBuffers[imageIndex])
 				.setClearValues(clearValue);
-			cmdBuffers[curFrame].beginRenderPass(&beginInfo, vk::SubpassContents::eInline);
+			cmdBuffers[curFrame].beginRenderPass(&passbeginInfo, vk::SubpassContents::eInline);
 			{
 				cmdBuffers[curFrame].bindPipeline(vk::PipelineBindPoint::eGraphics, render_process->graphicsPipeline);
 				vk::DeviceSize offset = 0;
-				cmdBuffers[curFrame].bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
-					Context::GetInstance().renderProcess->layout, 0, descriptorSets[curFrame], {});
-				cmdBuffers[curFrame].bindVertexBuffers(0, deviceVertexBuffer_->buffer, offset);
-				cmdBuffers[curFrame].draw(3, 1, 0, 0);
+				cmdBuffers[curFrame].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, layout, 0, descriptorSets[curFrame], {});
+				cmdBuffers[curFrame].bindVertexBuffers(0, hostVertexBuffer_->buffer, offset);
+				cmdBuffers[curFrame].bindIndexBuffer(hostIndicesBuffer_->buffer, 0, vk::IndexType::eUint32);
+				glm::mat4x4 modelMat(1.0f);
+				modelMat = glm::translate(modelMat,{ float(x)/1000.0f, float(y)/1000.0f, 0 });
+				modelMat = glm::scale(modelMat, { 1, 1, 0 });
+				modelMat = glm::rotate(modelMat, glm::radians(rot),{ 0, 0, 1 });
+				//std::cout<<x<<"  " << modelMat[2][2] << std::endl;
+				cmdBuffers[curFrame].pushConstants(layout, vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4x4), (void*)&modelMat);
+				cmdBuffers[curFrame].drawIndexed(6, 1, 0, 0, 0);
 			}
 			cmdBuffers[curFrame].endRenderPass();
 		}
@@ -149,7 +172,7 @@ namespace toy2d {
 
 	void Renderer::createVertexBuffer() {
 		hostVertexBuffer_.reset(new Buffer(sizeof(vertices), 
-			vk::BufferUsageFlagBits::eTransferSrc,
+			vk::BufferUsageFlagBits::eVertexBuffer,
 			vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent));
 		deviceVertexBuffer_.reset(new Buffer(sizeof(vertices),
 			vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eVertexBuffer,
@@ -157,43 +180,57 @@ namespace toy2d {
 	}
 
 	void Renderer::bufferVertexData() {
-		auto& ctx = Context::GetInstance();
-		void* ptr = ctx.device.mapMemory(hostVertexBuffer_->memory, 0, hostVertexBuffer_->size);
-		memcpy(ptr, vertices.data(), sizeof(vertices));
-		ctx.device.unmapMemory(hostVertexBuffer_->memory);
+		memcpy(hostVertexBuffer_->map, vertices, sizeof(vertices));
+	}
 
-		copyBuffer(hostVertexBuffer_->buffer, deviceVertexBuffer_->buffer, hostVertexBuffer_->size, 0, 0);
+	void Renderer::createIndicesBuffer() {
+		hostIndicesBuffer_.reset(new Buffer(sizeof(indices),
+			vk::BufferUsageFlagBits::eIndexBuffer,
+			vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent));
+		deviceIndicesBuffer_.reset(new Buffer(sizeof(indices),
+			vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndexBuffer,
+			vk::MemoryPropertyFlagBits::eDeviceLocal));
+	}
+
+	void Renderer::bufferIndicesData() {
+		memcpy(hostIndicesBuffer_->map, indices, sizeof(indices));
 	}
 
 	void Renderer::createUniformBuffers() {
 		hostUniformBuffers_.resize(maxFlightCount);
 		deviceUniformBuffers_.resize(maxFlightCount);
+		hostColorBuffers_.resize(maxFlightCount);
+		deviceColorBuffers_.resize(maxFlightCount);
 
+		size_t size = sizeof(glm::mat4x4) * 2;
 		for (auto& buffer : hostUniformBuffers_) {
-			buffer.reset(new Buffer(sizeof(uniform),
+			buffer.reset(new Buffer(size,
 				vk::BufferUsageFlagBits::eTransferSrc,
 				vk::MemoryPropertyFlagBits::eHostCoherent|vk::MemoryPropertyFlagBits::eHostVisible));
 		}
 
 		for (auto& buffer : deviceUniformBuffers_) {
-			buffer.reset(new Buffer(sizeof(uniform),
+			buffer.reset(new Buffer(size,
+				vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eUniformBuffer,
+				vk::MemoryPropertyFlagBits::eDeviceLocal));
+		}
+
+		for (auto& buffer : hostColorBuffers_) {
+			buffer.reset(new Buffer(sizeof(Color),
+				vk::BufferUsageFlagBits::eTransferSrc,
+				vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent));
+		}
+
+		for (auto& buffer : deviceColorBuffers_) {
+			buffer.reset(new Buffer(sizeof(Color),
 				vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eUniformBuffer,
 				vk::MemoryPropertyFlagBits::eDeviceLocal));
 		}
 	}
-	void Renderer::bufferUniformData() {
-		for (size_t i=0; i < hostUniformBuffers_.size(); i++) {
-			auto& hostBuffer = hostUniformBuffers_[i];
-			void* ptr = Context::GetInstance().device.mapMemory(hostBuffer->memory, 0, hostBuffer->size);
-			memcpy(ptr, &uniform, sizeof(uniform));
-			Context::GetInstance().device.unmapMemory(hostBuffer->memory);
-
-			copyBuffer(hostBuffer->buffer, deviceUniformBuffers_[i]->buffer, hostBuffer->size, 0, 0);
-		}
-	}
 
 
-	void Renderer::copyBuffer(vk::Buffer& src, vk::Buffer& dst, size_t size, size_t srcOffset, size_t dstOffset) {
+
+	void Renderer::copyBuffer(Buffer& src, Buffer& dst, size_t size, size_t srcOffset, size_t dstOffset) {
 		auto& ctx = Context::GetInstance();
 		
 		auto cmdBuf = ctx.commandManager->CreateOneCommandBuffer();
@@ -205,12 +242,13 @@ namespace toy2d {
 			region.setSize(size)
 				.setSrcOffset(srcOffset)
 				.setDstOffset(dstOffset);
-			cmdBuf.copyBuffer(src, dst, region);
+			cmdBuf.copyBuffer(src.buffer, dst.buffer, region);
 		} cmdBuf.end();
 
 		vk::SubmitInfo submit;
 		submit.setCommandBuffers(cmdBuf);
 		ctx.graphics_queue.submit(submit);
+		ctx.graphics_queue.waitIdle();
 		ctx.device.waitIdle();
 		ctx.commandManager->freeCmds(cmdBuf);
 	}
@@ -221,7 +259,8 @@ namespace toy2d {
 		vk::DescriptorPoolSize poolSize;
 		poolSize.setDescriptorCount(maxFlightCount)
 			.setType(vk::DescriptorType::eUniformBuffer);
-		poolInfo.setPoolSizes(poolSize)
+		std::vector<vk::DescriptorPoolSize> poolSizes(2, poolSize);
+		poolInfo.setPoolSizes(poolSizes)
 			.setMaxSets(maxFlightCount);
 		descriptorPool = Context::GetInstance().device.createDescriptorPool(poolInfo);
 	}
@@ -229,34 +268,70 @@ namespace toy2d {
 
 	// the layout need to be destroyed
 	void Renderer::allocateDescriptorSets() {
-		std::vector<vk::DescriptorSetLayout> layouts(maxFlightCount, Context::GetInstance().renderProcess->setLayout);
+		std::vector<vk::DescriptorSetLayout> layouts(maxFlightCount, Shader::GetInstance().GetDescriptorSetLayouts()[0]);
 		vk::DescriptorSetAllocateInfo allocInfo;
 		allocInfo.setDescriptorPool(descriptorPool)
-			.setDescriptorSetCount(maxFlightCount)
 			.setSetLayouts(layouts);
 		descriptorSets = Context::GetInstance().device.allocateDescriptorSets(allocInfo);
-		//for (auto& desc : layouts) {
-		//	Context::GetInstance().device.destroyDescriptorSetLayout(desc);
-		//}
 	}
 
 	void Renderer::updateDescriptorSets() {
 		for (size_t i = 0; i < descriptorSets.size();i++) {
-			auto& set = descriptorSets[i];
-			vk::WriteDescriptorSet desc;
-			vk::DescriptorBufferInfo bufferInfo;
-			bufferInfo.setBuffer(deviceUniformBuffers_[i]->buffer)
-				.setRange(deviceUniformBuffers_[i]->size)
+			
+			// bind MVP buffer
+			vk::DescriptorBufferInfo bufferInfo1;
+			vk::WriteDescriptorSet writeInfo1;
+			bufferInfo1.setBuffer(deviceUniformBuffers_[i]->buffer)
+				.setRange(sizeof(glm::mat4) * 2) // sizeof(glm::mat4) * 2
 				.setOffset(0);
-			desc.setDescriptorType(vk::DescriptorType::eUniformBuffer)
-				.setBufferInfo(bufferInfo)
+			writeInfo1.setDescriptorType(vk::DescriptorType::eUniformBuffer)
+				.setBufferInfo(bufferInfo1)
 				.setDstBinding(0)
-				.setDstSet(set)
+				.setDescriptorType(vk::DescriptorType::eUniformBuffer)
+				.setDescriptorCount(1)
 				.setDstArrayElement(0)
-				.setDescriptorCount(1);
+				.setDstSet(descriptorSets[i]);
 
+			// bind Color buffer
+			vk::DescriptorBufferInfo bufferInfo2;
+			vk::WriteDescriptorSet writeInfo2;
+			bufferInfo2.setBuffer(deviceColorBuffers_[i]->buffer)
+				.setOffset(0)
+				.setRange(sizeof(Color));
 
-			Context::GetInstance().device.updateDescriptorSets(desc, {});
+			writeInfo2.setBufferInfo(bufferInfo2)
+				.setDstBinding(1)
+				.setDstArrayElement(0)
+				.setDescriptorCount(1)
+				.setDescriptorType(vk::DescriptorType::eUniformBuffer)
+				.setDstSet(descriptorSets[i]);
+			Context::GetInstance().device.updateDescriptorSets({writeInfo1, writeInfo2}, {});
+		}
+	}
+
+	void Renderer::SetDrawColor(const Color& color) {
+		for (int i = 0; i < hostColorBuffers_.size(); i++) {
+			auto& buffer = hostColorBuffers_[i];
+			auto& device = Context::GetInstance().device;
+			memcpy(buffer->map, (void*)&color, sizeof(float) * 3);
+
+			copyBuffer(*buffer, *deviceColorBuffers_[i], buffer->size, 0, 0);
+		}
+	}
+
+	void Renderer::SetProject(int right, int left, int bottom, int top, int far, int near) {
+		//projectMat = glm::ortho(left, right, bottom, top, near, far);
+		projectMat = glm::mat4x4(1.0f);
+		viewMat = glm::mat4x4(1.0f);
+		bufferMVPData();
+	}
+
+	void Renderer::bufferMVPData() {
+		for (size_t i = 0; i < hostUniformBuffers_.size(); i++) {
+			auto& hostBuffer = hostUniformBuffers_[i];
+			memcpy(hostBuffer->map, (void*)&projectMat, sizeof(glm::mat4x4));
+			memcpy((float*)hostBuffer->map + 4*4, (void*)&viewMat, sizeof(glm::mat4x4));
+			copyBuffer(*hostBuffer, *deviceUniformBuffers_[i], hostBuffer->size, 0, 0);
 		}
 	}
 }

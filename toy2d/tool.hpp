@@ -11,6 +11,11 @@ namespace toy2d {
 
 using CreateSurfaceFunc = std::function<vk::SurfaceKHR(vk::Instance)>;
 
+struct Color {
+    float r, g, b;
+};
+
+
 template <typename T, typename U>
 void RemoveNosupportedElems(std::vector<T>& elems, const std::vector<U>& supportedElems,
                             std::function<bool(const T&, const U&)> eq) {
