@@ -64,4 +64,17 @@ namespace toy2d {
 		return info;
 	}
 
+	std::uint32_t QueryBufferMemTypeIndex(std::uint32_t type, vk::MemoryPropertyFlags flag) {
+		auto property = Context::GetInstance().physicaldevice.getMemoryProperties();
+
+		for (std::uint32_t i = 0; i < property.memoryTypeCount; i++) {
+			if ((1 << i) & type &&
+				property.memoryTypes[i].propertyFlags & flag) {
+				return i;
+			}
+		}
+
+		return 0;
+	}
+
 }

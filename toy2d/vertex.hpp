@@ -5,14 +5,19 @@
 namespace toy2d {
 	struct Vertex final {
 		float x, y;
+		float u, v;
 
-		static vk::VertexInputAttributeDescription GetAttribute() {
-			vk::VertexInputAttributeDescription desc;
-			desc.setBinding(0)
+		static std::vector<vk::VertexInputAttributeDescription> GetAttribute() {
+			std::vector <vk::VertexInputAttributeDescription> descs(2);
+			descs[0].setBinding(0)
 				.setFormat(vk::Format::eR32G32Sfloat)
 				.setLocation(0)
 				.setOffset(0);
-			return desc;
+			descs[1].setBinding(0)
+				.setFormat(vk::Format::eR32G32Sfloat)
+				.setLocation(1)
+				.setOffset(sizeof(float) * 2);
+			return descs;
 		}
 
 		static vk::VertexInputBindingDescription GetBinding() {

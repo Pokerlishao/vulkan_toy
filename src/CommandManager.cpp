@@ -44,4 +44,21 @@ namespace toy2d {
 		device.freeCommandBuffers(commandPool, buffer);
 	}
 
+	void CommandManager::ExecuteCmd(vk::Queue queue, RecordCmdFunc func) {
+		auto cmdBuf = CreateOneCommandBuffer();
+
+		vk::CommandBufferBeginInfo beginInfo;
+		beginInfo.setFlags(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
+		cmdBuf.begin(beginInfo);
+		if (func) func(cmdBuf);
+		cmdBuf.end();
+
+		vk::SubmitInfo submitInfo;
+		submitInfo.setCommandBuffers(cmdBuf);
+		queue.submit(submitInfo);
+		queue.waitIdle();
+		Context::GetInstance().device.waitIdle();
+		freeCmds(cmdBuf);
+	}
+
 }

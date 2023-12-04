@@ -5,6 +5,7 @@
 #include "toy2d/uniform.hpp"
 #include "toy2d/tool.hpp"
 #include "toy2d/shader.hpp"
+#include "toy2d/texture.hpp"
 #include "vulkan/vulkan.hpp"
 #include "glm/glm.hpp"
 #include "glm/common.hpp"
@@ -14,10 +15,10 @@
 namespace toy2d {
 
 	static Vertex vertices[] = {
-		Vertex{-0.5, -0.5},
-		Vertex{0.5, -0.5},
-		Vertex{0.5, 0.5},
-		Vertex{-0.5, 0.5}
+		Vertex{-0.5, -0.5, 0, 0},
+		Vertex{0.5, -0.5, 1, 0},
+		Vertex{0.5, 0.5, 1 , 1},
+		Vertex{-0.5, 0.5, 0, 1}
 	};
 
 	static std::uint32_t indices[] = {
@@ -37,6 +38,9 @@ namespace toy2d {
 		bufferIndicesData();
 
 		createUniformBuffers();
+
+		createTexture();
+		createSampler();
 
 		createDescriptorPool();
 		allocateDescriptorSets();
@@ -124,7 +128,7 @@ namespace toy2d {
 			vk::RenderPassBeginInfo passbeginInfo;
 			vk::Rect2D area({ 0,0 }, {swapchain->info.imageExtent});
 			vk::ClearValue clearValue;
-			clearValue.setColor(vk::ClearColorValue({0.1f, 0.0f, 0.3f, 1.0f}));
+			clearValue.setColor(vk::ClearColorValue({0.1f, 0.1f, 0.1f, 1.0f}));
 			passbeginInfo.setRenderPass(render_process->renderPass)
 				.setRenderArea(area)
 				.setFramebuffer(swapchain->frameBuffers[imageIndex])
@@ -137,10 +141,10 @@ namespace toy2d {
 				cmdBuffers[curFrame].bindVertexBuffers(0, hostVertexBuffer_->buffer, offset);
 				cmdBuffers[curFrame].bindIndexBuffer(hostIndicesBuffer_->buffer, 0, vk::IndexType::eUint32);
 				glm::mat4x4 modelMat(1.0f);
-				modelMat = glm::translate(modelMat,{ float(x)/1000.0f, float(y)/1000.0f, 0 });
-				modelMat = glm::scale(modelMat, { 1, 1, 0 });
+				modelMat = glm::translate(modelMat,{ float(x), float(y), 0 });
+				modelMat = glm::scale(modelMat, { 300.0, 428.0, 0 });
 				modelMat = glm::rotate(modelMat, glm::radians(rot),{ 0, 0, 1 });
-				//std::cout<<x<<"  " << modelMat[2][2] << std::endl;
+
 				cmdBuffers[curFrame].pushConstants(layout, vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4x4), (void*)&modelMat);
 				cmdBuffers[curFrame].drawIndexed(6, 1, 0, 0, 0);
 			}
@@ -256,10 +260,11 @@ namespace toy2d {
 
 	void Renderer::createDescriptorPool() {
 		vk::DescriptorPoolCreateInfo poolInfo;
-		vk::DescriptorPoolSize poolSize;
-		poolSize.setDescriptorCount(maxFlightCount)
+		std::vector<vk::DescriptorPoolSize> poolSizes(2);
+		poolSizes[0].setDescriptorCount(maxFlightCount * 2)
 			.setType(vk::DescriptorType::eUniformBuffer);
-		std::vector<vk::DescriptorPoolSize> poolSizes(2, poolSize);
+		poolSizes[1].setDescriptorCount(maxFlightCount)
+			.setType(vk::DescriptorType::eCombinedImageSampler);
 		poolInfo.setPoolSizes(poolSizes)
 			.setMaxSets(maxFlightCount);
 		descriptorPool = Context::GetInstance().device.createDescriptorPool(poolInfo);
@@ -277,14 +282,14 @@ namespace toy2d {
 
 	void Renderer::updateDescriptorSets() {
 		for (size_t i = 0; i < descriptorSets.size();i++) {
-			
+			std::vector<vk::WriteDescriptorSet> writeInfos(3);
 			// bind MVP buffer
 			vk::DescriptorBufferInfo bufferInfo1;
-			vk::WriteDescriptorSet writeInfo1;
+
 			bufferInfo1.setBuffer(deviceUniformBuffers_[i]->buffer)
 				.setRange(sizeof(glm::mat4) * 2) // sizeof(glm::mat4) * 2
 				.setOffset(0);
-			writeInfo1.setDescriptorType(vk::DescriptorType::eUniformBuffer)
+			writeInfos[0].setDescriptorType(vk::DescriptorType::eUniformBuffer)
 				.setBufferInfo(bufferInfo1)
 				.setDstBinding(0)
 				.setDescriptorType(vk::DescriptorType::eUniformBuffer)
@@ -294,18 +299,31 @@ namespace toy2d {
 
 			// bind Color buffer
 			vk::DescriptorBufferInfo bufferInfo2;
-			vk::WriteDescriptorSet writeInfo2;
 			bufferInfo2.setBuffer(deviceColorBuffers_[i]->buffer)
 				.setOffset(0)
 				.setRange(sizeof(Color));
 
-			writeInfo2.setBufferInfo(bufferInfo2)
+			writeInfos[1].setBufferInfo(bufferInfo2)
 				.setDstBinding(1)
 				.setDstArrayElement(0)
 				.setDescriptorCount(1)
 				.setDescriptorType(vk::DescriptorType::eUniformBuffer)
 				.setDstSet(descriptorSets[i]);
-			Context::GetInstance().device.updateDescriptorSets({writeInfo1, writeInfo2}, {});
+
+			// bind image
+			vk::DescriptorImageInfo imageInfo;
+			imageInfo.setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
+				.setImageView(texture->imageView)
+				.setSampler(sampler);
+
+			writeInfos[2].setImageInfo(imageInfo)
+				.setDstBinding(2)
+				.setDstArrayElement(0)
+				.setDescriptorCount(1)
+				.setDescriptorType(vk::DescriptorType::eCombinedImageSampler)
+				.setDstSet(descriptorSets[i]);
+
+			Context::GetInstance().device.updateDescriptorSets(writeInfos, {});
 		}
 	}
 
@@ -322,7 +340,14 @@ namespace toy2d {
 	void Renderer::SetProject(int right, int left, int bottom, int top, int far, int near) {
 		//projectMat = glm::ortho(left, right, bottom, top, near, far);
 		projectMat = glm::mat4x4(1.0f);
-		viewMat = glm::mat4x4(1.0f);
+
+		projectMat[0][0] = 2.0 / (right - left);
+		projectMat[1][1] = 2.0 / (top - bottom);
+		projectMat[2][2] = 2.0 / (near - far);
+		projectMat[3][0] = (float)(left + right) / (left - right);
+		projectMat[3][1] = (float)(top + bottom) / (bottom - top);
+		projectMat[3][2] = (float)(near + far) / (far - near);
+
 		bufferMVPData();
 	}
 
@@ -333,5 +358,23 @@ namespace toy2d {
 			memcpy((float*)hostBuffer->map + 4*4, (void*)&viewMat, sizeof(glm::mat4x4));
 			copyBuffer(*hostBuffer, *deviceUniformBuffers_[i], hostBuffer->size, 0, 0);
 		}
+	}
+
+	void Renderer::createSampler() {
+		vk::SamplerCreateInfo createInfo;
+		createInfo.setMagFilter(vk::Filter::eLinear)
+			.setMinFilter(vk::Filter::eLinear)
+			.setAddressModeU(vk::SamplerAddressMode::eRepeat)
+			.setAddressModeV(vk::SamplerAddressMode::eRepeat)
+			.setAddressModeW(vk::SamplerAddressMode::eRepeat)
+			.setAnisotropyEnable(false)
+			.setBorderColor(vk::BorderColor::eIntOpaqueWhite)
+			.setUnnormalizedCoordinates(false)
+			.setCompareEnable(false)
+			.setMipmapMode(vk::SamplerMipmapMode::eLinear);
+		sampler = Context::GetInstance().device.createSampler(createInfo);
+	}
+	void Renderer::createTexture() {
+		texture = std::make_unique<Texture>("G:\\code\\toy2d\\resources\\furina.jpg");
 	}
 }

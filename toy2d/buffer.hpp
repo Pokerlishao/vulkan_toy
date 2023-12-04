@@ -26,5 +26,7 @@ namespace toy2d {
 		MemoryInfo GetMemoryInfo(vk::MemoryPropertyFlags property);
 	};
 
+	std::uint32_t QueryBufferMemTypeIndex(std::uint32_t type, vk::MemoryPropertyFlags flag);
+
 
 }

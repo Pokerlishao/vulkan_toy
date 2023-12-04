@@ -5,6 +5,7 @@
 #include "toy2d/buffer.hpp"
 #include "toy2d/tool.hpp"
 #include "toy2d/CommandManager.hpp"
+#include "toy2d/texture.hpp"
 #include "glm/glm.hpp"
 
 namespace toy2d {
@@ -44,6 +45,9 @@ namespace toy2d {
 		vk::DescriptorPool descriptorPool;
 		std::vector<vk::DescriptorSet> descriptorSets;
 
+		std::unique_ptr<Texture> texture;
+		vk::Sampler sampler;
+
 		void createSemaphores();
 		void createFences();
 		void createCmdBuffers();
@@ -59,6 +63,9 @@ namespace toy2d {
 		void updateDescriptorSets();
 
 		void bufferMVPData();
+
+		void createSampler();
+		void createTexture();
 
 		void copyBuffer(Buffer& src, Buffer& dst, size_t size, size_t srcOffset, size_t dstOffset);
 	};
