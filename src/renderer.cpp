@@ -142,7 +142,7 @@ namespace toy2d {
 				cmdBuffers[curFrame].bindIndexBuffer(hostIndicesBuffer_->buffer, 0, vk::IndexType::eUint32);
 				glm::mat4x4 modelMat(1.0f);
 				modelMat = glm::translate(modelMat,{ float(x), float(y), 0 });
-				modelMat = glm::scale(modelMat, { 300.0, 428.0, 0 });
+				modelMat = glm::scale(modelMat, { 400.0, 400.0, 0 });
 				modelMat = glm::rotate(modelMat, glm::radians(rot),{ 0, 0, 1 });
 
 				cmdBuffers[curFrame].pushConstants(layout, vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4x4), (void*)&modelMat);
@@ -375,6 +375,6 @@ namespace toy2d {
 		sampler = Context::GetInstance().device.createSampler(createInfo);
 	}
 	void Renderer::createTexture() {
-		texture = std::make_unique<Texture>("G:\\code\\toy2d\\resources\\furina.jpg");
+		texture = std::make_unique<Texture>("G:\\code\\toy2d\\resources\\nahida.png");
 	}
 }

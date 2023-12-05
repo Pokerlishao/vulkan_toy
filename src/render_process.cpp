@@ -89,15 +89,23 @@ namespace toy2d {
 		//7. stencil test depth test
 
 		//8. color blending
-		vk::PipelineColorBlendStateCreateInfo ColorBlendStage;
-		vk::PipelineColorBlendAttachmentState attaches;
-		attaches.setBlendEnable(false)
+
+		vk::PipelineColorBlendAttachmentState blendstate;
+		blendstate.setBlendEnable(true)
 			.setColorWriteMask(vk::ColorComponentFlagBits::eR |
 				vk::ColorComponentFlagBits::eG |
 				vk::ColorComponentFlagBits::eB |
-				vk::ColorComponentFlagBits::eA);
+				vk::ColorComponentFlagBits::eA)
+			.setSrcColorBlendFactor(vk::BlendFactor::eOne)
+			.setDstColorBlendFactor(vk::BlendFactor::eOneMinusSrcAlpha)
+			.setColorBlendOp(vk::BlendOp::eAdd)
+			.setSrcAlphaBlendFactor(vk::BlendFactor::eOne)
+			.setDstAlphaBlendFactor(vk::BlendFactor::eZero)
+			.setAlphaBlendOp(vk::BlendOp::eAdd);
+
+		vk::PipelineColorBlendStateCreateInfo ColorBlendStage;
 		ColorBlendStage.setLogicOpEnable(false)
-			.setAttachments(attaches);
+			.setAttachments(blendstate);
 		createInfo.setPColorBlendState(&ColorBlendStage);
 
 		//9. renderPass & layout
