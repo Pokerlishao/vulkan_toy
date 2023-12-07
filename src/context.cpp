@@ -16,8 +16,6 @@ void Context::Init(const std::vector<const char*>& extensions, CreateSurfaceFunc
 }
 
 void Context::Quit() {
-
-    //instance_.reset(); // to do debug
     delete instance_;
 }
 
@@ -126,6 +124,21 @@ void Context::createDevice() {
     createinfo.setQueueCreateInfos(queue_create_infos)
         .setPEnabledExtensionNames(extensions);
     device = physicaldevice.createDevice(createinfo);
+}
+
+void Context::initSampler() {
+    vk::SamplerCreateInfo createInfo;
+    createInfo.setMagFilter(vk::Filter::eLinear)
+        .setMinFilter(vk::Filter::eLinear)
+        .setAddressModeU(vk::SamplerAddressMode::eRepeat)
+        .setAddressModeV(vk::SamplerAddressMode::eRepeat)
+        .setAddressModeW(vk::SamplerAddressMode::eRepeat)
+        .setAnisotropyEnable(false)
+        .setBorderColor(vk::BorderColor::eIntOpaqueBlack)
+        .setUnnormalizedCoordinates(false)
+        .setCompareEnable(false)
+        .setMipmapMode(vk::SamplerMipmapMode::eLinear);
+    sampler = Context::GetInstance().device.createSampler(createInfo);
 }
 
 void Context::queryQueueInfo() {

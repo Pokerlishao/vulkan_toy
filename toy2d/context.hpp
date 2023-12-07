@@ -40,12 +40,14 @@ namespace toy2d {
 		std::unique_ptr<RenderProcess> renderProcess;
 		std::unique_ptr<Renderer> renderer;
 		std::unique_ptr<CommandManager> commandManager;
+		vk::Sampler sampler;
 		QueueFamilyIndices queueInfo;
 
 		void InitSwapchain(int W, int H);
 		void InitRenderProcess();
 		void InitGraphicsPipeline();
 		void InitCommandPool();
+		void initSampler();
 
 
 

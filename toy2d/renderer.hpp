@@ -14,14 +14,19 @@ namespace toy2d {
 
 		Renderer(int maxFlightCount = 2);
 		~Renderer();
-		void Render(int x,int y, float rot);
 
 		void SetProject(int right, int left, int bottom, int top, int far, int near);
 		void SetDrawColor(const Color& color);
 
+		void DrawTexture(int x, int y, float rot, Texture& texture);
+		void StartRender();
+		void EndRender();
+
+
 	private:
 		int maxFlightCount;
 		int curFrame;
+		uint32_t imageIndex;
 
 		glm::mat4x4 projectMat;
 		glm::mat4x4 viewMat;
@@ -42,8 +47,8 @@ namespace toy2d {
 		std::vector<std::unique_ptr<Buffer>> hostColorBuffers_;
 		std::vector<std::unique_ptr<Buffer>> deviceColorBuffers_;
 
-		vk::DescriptorPool descriptorPool;
-		std::vector<vk::DescriptorSet> descriptorSets;
+
+		std::vector<DescriptorSetManager::SetInfo> descriptorManagers;
 
 		std::unique_ptr<Texture> texture;
 		vk::Sampler sampler;

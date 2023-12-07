@@ -2,6 +2,8 @@
 #include "toy2d/context.hpp"
 #include "toy2d/tool.hpp"
 #include "toy2d/shader.hpp"
+#include "toy2d/descriptor_manager.hpp"
+#include "toy2d/texture.hpp"
 
 namespace toy2d {
 
@@ -16,7 +18,11 @@ namespace toy2d {
         ctx.InitGraphicsPipeline();
         ctx.swapchain->InitFramebuffers();
         ctx.InitCommandPool();
-        renderer_ = std::make_unique<Renderer>();
+        ctx.initSampler();
+
+        int maxFlightCount = 2;
+        DescriptorSetManager::Init(maxFlightCount);
+        renderer_ = std::make_unique<Renderer>(maxFlightCount);
         renderer_->SetProject(W, 0, 0, H, -1, 1);
 
         //File read Path 
@@ -27,6 +33,7 @@ namespace toy2d {
         Context::GetInstance().device.waitIdle();
         renderer_.reset();
         Shader::Quit();
+        DescriptorSetManager::Quit();
         Context::Quit();
     }
 
@@ -34,4 +41,11 @@ namespace toy2d {
         return renderer_.get();
     }
 
+    Texture* LoadTexture(const std::string& filename) {
+        return TextureManager::Instance().Load(filename);
+    }
+
+    void DestroyTexture(Texture* texture) {
+        TextureManager::Instance().Destroy(texture);
+    }
 }

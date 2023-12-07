@@ -6,10 +6,13 @@
 #include "toy2d/tool.hpp"
 #include "toy2d/shader.hpp"
 #include "toy2d/texture.hpp"
+#include "toy2d/descriptor_manager.hpp"
 #include "vulkan/vulkan.hpp"
 #include "glm/glm.hpp"
 #include "glm/common.hpp"
 #include "glm/gtc/matrix_transform.hpp"
+
+//todo  renderer
 
 
 namespace toy2d {
@@ -39,11 +42,9 @@ namespace toy2d {
 
 		createUniformBuffers();
 
-		createTexture();
-		createSampler();
 
-		createDescriptorPool();
-		allocateDescriptorSets();
+		descriptorManagers = DescriptorSetManager::Instance().AllocBufferSets(maxFlightCount);
+
 		updateDescriptorSets();
 
 		projectMat = glm::mat4x4(1.0f);
@@ -67,7 +68,6 @@ namespace toy2d {
 		for (auto& fence : cmdAvailableFences) {
 			device.destroyFence(fence);
 		}
-		device.destroyDescriptorPool(descriptorPool);
 	}
 
 	void Renderer::createFences() {
@@ -97,8 +97,7 @@ namespace toy2d {
 			cmdbuffer = Context::GetInstance().commandManager->CreateOneCommandBuffer();
 	}
 
-
-	void Renderer::Render(int x, int y, float rot) {
+	void Renderer::StartRender() {
 		auto& ctx = Context::GetInstance();
 		auto& device = ctx.device;
 		auto& render_process = ctx.renderProcess;
@@ -113,43 +112,57 @@ namespace toy2d {
 		device.resetFences(cmdAvailableFences[curFrame]);
 
 
-		auto& result = device.acquireNextImageKHR(swapchain->swapchain, 
+		auto& result = device.acquireNextImageKHR(swapchain->swapchain,
 			std::numeric_limits<uint64_t>::max(), imageAvailableSems[curFrame]); //time out
 		if (result.result != vk::Result::eSuccess) {
 			throw std::runtime_error("Acquire next image in swapchain failed!");
 		}
-		auto imageIndex = result.value;
-		
+		imageIndex = result.value;
+
 		cmdBuffers[curFrame].reset();
 		vk::CommandBufferBeginInfo beginInfo;
 		beginInfo.setFlags(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
 		cmdBuffers[curFrame].begin(beginInfo);
-		{
-			vk::RenderPassBeginInfo passbeginInfo;
-			vk::Rect2D area({ 0,0 }, {swapchain->info.imageExtent});
-			vk::ClearValue clearValue;
-			clearValue.setColor(vk::ClearColorValue({0.1f, 0.1f, 0.1f, 1.0f}));
-			passbeginInfo.setRenderPass(render_process->renderPass)
-				.setRenderArea(area)
-				.setFramebuffer(swapchain->frameBuffers[imageIndex])
-				.setClearValues(clearValue);
-			cmdBuffers[curFrame].beginRenderPass(&passbeginInfo, vk::SubpassContents::eInline);
-			{
-				cmdBuffers[curFrame].bindPipeline(vk::PipelineBindPoint::eGraphics, render_process->graphicsPipeline);
-				vk::DeviceSize offset = 0;
-				cmdBuffers[curFrame].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, layout, 0, descriptorSets[curFrame], {});
-				cmdBuffers[curFrame].bindVertexBuffers(0, hostVertexBuffer_->buffer, offset);
-				cmdBuffers[curFrame].bindIndexBuffer(hostIndicesBuffer_->buffer, 0, vk::IndexType::eUint32);
-				glm::mat4x4 modelMat(1.0f);
-				modelMat = glm::translate(modelMat,{ float(x), float(y), 0 });
-				modelMat = glm::scale(modelMat, { 400.0, 400.0, 0 });
-				modelMat = glm::rotate(modelMat, glm::radians(rot),{ 0, 0, 1 });
 
-				cmdBuffers[curFrame].pushConstants(layout, vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4x4), (void*)&modelMat);
-				cmdBuffers[curFrame].drawIndexed(6, 1, 0, 0, 0);
-			}
-			cmdBuffers[curFrame].endRenderPass();
-		}
+		vk::RenderPassBeginInfo passbeginInfo;
+		vk::Rect2D area({ 0,0 }, { swapchain->info.imageExtent });
+		vk::ClearValue clearValue;
+		clearValue.setColor(vk::ClearColorValue({ 0.1f, 0.1f, 0.1f, 1.0f }));
+		passbeginInfo.setRenderPass(render_process->renderPass)
+			.setRenderArea(area)
+			.setFramebuffer(swapchain->frameBuffers[imageIndex])
+			.setClearValues(clearValue);
+		cmdBuffers[curFrame].beginRenderPass(&passbeginInfo, vk::SubpassContents::eInline);
+		cmdBuffers[curFrame].bindPipeline(vk::PipelineBindPoint::eGraphics, render_process->graphicsPipeline);
+	}
+
+
+	void Renderer::DrawTexture(int x, int y, float rot, Texture& texture) {
+		auto& ctx = Context::GetInstance();
+		auto& device = ctx.device;
+		auto& layout = ctx.renderProcess->layout;
+
+		vk::DeviceSize offset = 0;
+		cmdBuffers[curFrame].bindVertexBuffers(0, hostVertexBuffer_->buffer, offset);
+		cmdBuffers[curFrame].bindIndexBuffer(hostIndicesBuffer_->buffer, 0, vk::IndexType::eUint32);
+		cmdBuffers[curFrame].bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
+			layout,
+			0, { descriptorManagers[curFrame].set, texture.set.set }, {});
+		glm::mat4x4 modelMat(1.0f);
+		modelMat = glm::translate(modelMat,{ float(x), float(y), 0 });
+		modelMat = glm::scale(modelMat, { 400.0, 400.0, 0 });
+		modelMat = glm::rotate(modelMat, glm::radians(rot),{ 0, 0, 1 });
+		cmdBuffers[curFrame].pushConstants(layout, vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4x4), (void*)&modelMat);
+		cmdBuffers[curFrame].drawIndexed(6, 1, 0, 0, 0);
+
+	}
+
+	void Renderer::EndRender() {
+		auto& ctx = Context::GetInstance();
+		auto& device = ctx.device;
+		auto& swapchain = ctx.swapchain;
+
+		cmdBuffers[curFrame].endRenderPass();
 		cmdBuffers[curFrame].end();
 
 		vk::SubmitInfo submitInfo;
@@ -165,7 +178,7 @@ namespace toy2d {
 		presentInfo.setImageIndices(imageIndex)
 			.setSwapchains(swapchain->swapchain)
 			.setWaitSemaphores(imageDrawFinishSems[curFrame]);
-		
+
 		if (ctx.present_queue.presentKHR(presentInfo) != vk::Result::eSuccess) {
 			throw std::runtime_error("Present queue execute failed");
 		}
@@ -258,44 +271,46 @@ namespace toy2d {
 	}
 
 
-	void Renderer::createDescriptorPool() {
-		vk::DescriptorPoolCreateInfo poolInfo;
-		std::vector<vk::DescriptorPoolSize> poolSizes(2);
-		poolSizes[0].setDescriptorCount(maxFlightCount * 2)
-			.setType(vk::DescriptorType::eUniformBuffer);
-		poolSizes[1].setDescriptorCount(maxFlightCount)
-			.setType(vk::DescriptorType::eCombinedImageSampler);
-		poolInfo.setPoolSizes(poolSizes)
-			.setMaxSets(maxFlightCount);
-		descriptorPool = Context::GetInstance().device.createDescriptorPool(poolInfo);
-	}
+	//void Renderer::createDescriptorPool() {
+	//	vk::DescriptorPoolCreateInfo poolInfo;
+	//	std::vector<vk::DescriptorPoolSize> poolSizes(2);
+	//	poolSizes[0].setDescriptorCount(maxFlightCount * 2)
+	//		.setType(vk::DescriptorType::eUniformBuffer);
+	//	poolSizes[1].setDescriptorCount(maxFlightCount)
+	//		.setType(vk::DescriptorType::eCombinedImageSampler);
+	//	poolInfo.setPoolSizes(poolSizes)
+	//		.setMaxSets(maxFlightCount);
+	//	descriptorPool = Context::GetInstance().device.createDescriptorPool(poolInfo);
+	//}
 
 
 	// the layout need to be destroyed
-	void Renderer::allocateDescriptorSets() {
-		std::vector<vk::DescriptorSetLayout> layouts(maxFlightCount, Shader::GetInstance().GetDescriptorSetLayouts()[0]);
-		vk::DescriptorSetAllocateInfo allocInfo;
-		allocInfo.setDescriptorPool(descriptorPool)
-			.setSetLayouts(layouts);
-		descriptorSets = Context::GetInstance().device.allocateDescriptorSets(allocInfo);
-	}
+	//void Renderer::allocateDescriptorSets() {
+	//	std::vector<vk::DescriptorSetLayout> layouts(maxFlightCount, Shader::GetInstance().GetDescriptorSetLayouts()[0]);
+	//	vk::DescriptorSetAllocateInfo allocInfo;
+	//	allocInfo.setDescriptorPool(descriptorPool)
+	//		.setSetLayouts(layouts);
+	//	descriptorSets = Context::GetInstance().device.allocateDescriptorSets(allocInfo);
+	//}
 
 	void Renderer::updateDescriptorSets() {
-		for (size_t i = 0; i < descriptorSets.size();i++) {
-			std::vector<vk::WriteDescriptorSet> writeInfos(3);
+		for (size_t i = 0; i < descriptorManagers.size();i++) {
+			
 			// bind MVP buffer
 			vk::DescriptorBufferInfo bufferInfo1;
-
 			bufferInfo1.setBuffer(deviceUniformBuffers_[i]->buffer)
 				.setRange(sizeof(glm::mat4) * 2) // sizeof(glm::mat4) * 2
 				.setOffset(0);
+
+			std::vector<vk::WriteDescriptorSet> writeInfos(2);
 			writeInfos[0].setDescriptorType(vk::DescriptorType::eUniformBuffer)
 				.setBufferInfo(bufferInfo1)
 				.setDstBinding(0)
 				.setDescriptorType(vk::DescriptorType::eUniformBuffer)
 				.setDescriptorCount(1)
 				.setDstArrayElement(0)
-				.setDstSet(descriptorSets[i]);
+				.setDstSet(descriptorManagers[i].set);
+
 
 			// bind Color buffer
 			vk::DescriptorBufferInfo bufferInfo2;
@@ -308,20 +323,20 @@ namespace toy2d {
 				.setDstArrayElement(0)
 				.setDescriptorCount(1)
 				.setDescriptorType(vk::DescriptorType::eUniformBuffer)
-				.setDstSet(descriptorSets[i]);
+				.setDstSet(descriptorManagers[i].set);
 
-			// bind image
-			vk::DescriptorImageInfo imageInfo;
-			imageInfo.setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
-				.setImageView(texture->imageView)
-				.setSampler(sampler);
+			//// bind image
+			//vk::DescriptorImageInfo imageInfo;
+			//imageInfo.setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
+			//	.setImageView(texture->imageView)
+			//	.setSampler(sampler);
 
-			writeInfos[2].setImageInfo(imageInfo)
-				.setDstBinding(2)
-				.setDstArrayElement(0)
-				.setDescriptorCount(1)
-				.setDescriptorType(vk::DescriptorType::eCombinedImageSampler)
-				.setDstSet(descriptorSets[i]);
+			//writeInfos[2].setImageInfo(imageInfo)
+			//	.setDstBinding(2)
+			//	.setDstArrayElement(0)
+			//	.setDescriptorCount(1)
+			//	.setDescriptorType(vk::DescriptorType::eCombinedImageSampler)
+			//	.setDstSet(descriptorSets[i]);
 
 			Context::GetInstance().device.updateDescriptorSets(writeInfos, {});
 		}
@@ -374,7 +389,7 @@ namespace toy2d {
 			.setMipmapMode(vk::SamplerMipmapMode::eLinear);
 		sampler = Context::GetInstance().device.createSampler(createInfo);
 	}
-	void Renderer::createTexture() {
-		texture = std::make_unique<Texture>("G:\\code\\toy2d\\resources\\nahida.png");
-	}
+	//void Renderer::createTexture() {
+	//	texture = std::make_unique<Texture>("G:\\code\\toy2d\\resources\\nahida.png");
+	//}
 }

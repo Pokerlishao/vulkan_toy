@@ -14,7 +14,7 @@ namespace toy2d {
 		printf("Load picture: width: %d, height:%d, channel: %d.\n", w, h, channel);
 		size_t size = w * h * 4; //RGBA
 
-		if (!pixels) {
+		if (!pixels || (w <=0) || (h<=0)) {
 			throw std::runtime_error("Load image failed!");
 		}
 
@@ -34,10 +34,13 @@ namespace toy2d {
 		createImageView();
 
 		stbi_image_free(pixels);
+		set = DescriptorSetManager::Instance().AllocImageSet();
+		updateDescriptorSet();
 	}
 
 	Texture::~Texture() {
 		auto& device = Context::GetInstance().device;
+		DescriptorSetManager::Instance().FreeImageSet(set);
 		device.destroyImageView(imageView);
 		device.destroyImage(image);
 		device.freeMemory(memory);
@@ -88,7 +91,6 @@ namespace toy2d {
 	}
 
 	//uint32_t Texture::queryImageMemoryIndex() {
-
 	//
 	//}
 
@@ -162,6 +164,45 @@ namespace toy2d {
 			});
 	}
 
+	void Texture::updateDescriptorSet() {
+		vk::WriteDescriptorSet writer;
+		vk::DescriptorImageInfo imageInfo;
+		//vk::DescriptorBufferInfo bufferinfo;
+		imageInfo.setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
+			.setImageView(imageView)
+			.setSampler(Context::GetInstance().sampler);
+		writer.setImageInfo(imageInfo)
+			.setDstBinding(0)
+			.setDstArrayElement(0)
+			.setDstSet(set.set)
+			//.setBufferInfo(bufferinfo)
+			.setDescriptorCount(1)
+			.setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
+		Context::GetInstance().device.updateDescriptorSets(writer, {});
+	}
 
+
+	std::unique_ptr<TextureManager> TextureManager::instance_ = nullptr;
+
+	Texture* TextureManager::Load(const std::string& filename) {
+		datas.push_back(std::unique_ptr<Texture>(new Texture(filename)));
+		return datas.back().get();
+	}
+
+	void TextureManager::Clear() {
+		datas.clear();
+	}
+
+	void TextureManager::Destroy(Texture* texture) {
+		auto it = std::find_if(datas.begin(), datas.end(),
+			[&](const std::unique_ptr<Texture>& t) {
+				return t.get() == texture;
+			});
+		if (it != datas.end()) {
+			Context::GetInstance().device.waitIdle();
+			datas.erase(it);
+			return;
+		}
+	}
 
 }

@@ -38,8 +38,13 @@ int main(int argc, char** argv) {
     auto renderer = toy2d::GetRenderer();
     int x = 100, y = 100;
     float rot = 0;
-    renderer->SetDrawColor(toy2d::Color{ 0, 1, 0 });
 
+
+    
+    toy2d::Texture * texture1 = toy2d::LoadTexture("G:\\code\\toy2d\\resources\\nahida.png");
+    toy2d::Texture* texture2 = toy2d::LoadTexture("G:\\code\\toy2d\\resources\\furina.jpg");
+
+    renderer->SetDrawColor(toy2d::Color{ 0, 1, 0 });
     while (!shouldClose) {
         while (SDL_PollEvent(&event)) {
             if (event.type == SDL_QUIT) {
@@ -75,8 +80,14 @@ int main(int argc, char** argv) {
                 }
             }
         }
-        renderer->Render(x, y, rot);
+        renderer->StartRender();
+        renderer->DrawTexture( x, y ,rot, *texture1);
+        renderer->DrawTexture( x+200, y+200, rot , *texture2);
+        renderer->EndRender();
     }
+
+    toy2d::DestroyTexture(texture1);
+    toy2d::DestroyTexture(texture2);
 
     toy2d::Quit();
 

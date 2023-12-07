@@ -108,6 +108,12 @@ namespace toy2d {
 			.setAttachments(blendstate);
 		createInfo.setPColorBlendState(&ColorBlendStage);
 
+		// dynamic changing state of pipeline
+		//vk::PipelineDynamicStateCreateInfo dynamicState;
+		//std::array states = { vk::DynamicState::eViewport, vk::DynamicState::eScissor };
+		//dynamicState.setDynamicStates(states);
+		//createInfo.setPDynamicState(&dynamicState);
+
 		//9. renderPass & layout
 		createInfo.setLayout(layout)
 			.setRenderPass(renderPass);
