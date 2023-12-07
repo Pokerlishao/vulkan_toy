@@ -36,13 +36,16 @@ int main(int argc, char** argv) {
         );
 
     auto renderer = toy2d::GetRenderer();
-    int x = 100, y = 100;
-    float rot = 0;
 
+    int sw = 0;
 
-    
+    std::vector<int>x, y;
+    std::vector<float> rot;
+
     toy2d::Texture * texture1 = toy2d::LoadTexture("G:\\code\\toy2d\\resources\\nahida.png");
     toy2d::Texture* texture2 = toy2d::LoadTexture("G:\\code\\toy2d\\resources\\furina.jpg");
+    x.push_back(100);   y.push_back(100);    rot.push_back(0);
+    x.push_back(600);   y.push_back(300);    rot.push_back(0);
 
     renderer->SetDrawColor(toy2d::Color{ 0, 1, 0 });
     while (!shouldClose) {
@@ -52,22 +55,22 @@ int main(int argc, char** argv) {
             }
             if (event.type == SDL_KEYDOWN) {
                 if (event.key.keysym.sym == SDLK_a) {
-                    x -= 10;
+                    x[sw] -= 10;
                 }
                 if (event.key.keysym.sym == SDLK_d) {
-                    x += 10;
+                    x[sw] += 10;
                 }
                 if (event.key.keysym.sym == SDLK_w) {
-                    y -= 10;
+                    y[sw] -= 10;
                 }
                 if (event.key.keysym.sym == SDLK_s) {
-                    y += 10;
+                    y[sw] += 10;
                 }
                 if (event.key.keysym.sym == SDLK_q) {
-                    rot += 10;
+                    rot[sw] += 10;
                 }
                 if (event.key.keysym.sym == SDLK_e) {
-                    rot -= 10;
+                    rot[sw] -= 10;
                 }
                 if (event.key.keysym.sym == SDLK_0) {
                     renderer->SetDrawColor(toy2d::Color{ 1, 0, 0 });
@@ -78,11 +81,14 @@ int main(int argc, char** argv) {
                 if (event.key.keysym.sym == SDLK_2) {
                     renderer->SetDrawColor(toy2d::Color{ 0, 0, 1 });
                 }
+                if (event.key.keysym.sym == SDLK_g) {
+                    sw = 1-sw;
+                }
             }
         }
         renderer->StartRender();
-        renderer->DrawTexture( x, y ,rot, *texture1);
-        renderer->DrawTexture( x+200, y+200, rot , *texture2);
+        renderer->DrawTexture( x[0], y[0], rot[0], *texture1);
+        renderer->DrawTexture( x[1], y[1], rot[1], *texture2);
         renderer->EndRender();
     }
 
